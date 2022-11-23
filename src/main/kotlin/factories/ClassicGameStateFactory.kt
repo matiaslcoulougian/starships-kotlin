@@ -1,8 +1,8 @@
 package factories
 
 import javafx.scene.input.KeyCode
-import main.STAGE_HEIGHT
-import main.STAGE_WIDTH
+import ui.STAGE_HEIGHT
+import ui.STAGE_WIDTH
 import models.*
 import utils.getRandomDouble
 import utils.getRandomInt
@@ -12,14 +12,22 @@ import kotlin.collections.HashMap
 class ClassicGameStateFactory: GameStateFactory {
     override fun buildGame(): GameState {
         val mover = Mover();
-        val starship1: Starship = buildStarship(1000, buildWeapon(), 50.0, 0.5, mover, Position(370.0, 400.0))
-        val starship2: Starship = buildStarship(1000, buildWeapon(), 50.0, 0.5, mover, Position(430.0, 400.0))
+        val starship1: Starship = buildStarship(100, buildWeapon(8, 11.0, BulletColor.RED), 50.0, 0.5, mover, Position(370.0, 400.0), "Matu", 2)
+        val starship2: Starship = buildStarship(500, buildWeapon(8, 12.0, BulletColor.BLUE), 50.0, 0.5, mover, Position(430.0, 400.0), "NPC", 1)
         val asteroid = buildAsteroid(5, 50, Position(1.0, 1.0), mover, 3.0, 80.0)
-        return GameState(listOf( starship1, starship2, asteroid), HashMap(mapOf(Pair(starship1.getId(), createKeyBinding1()), Pair(starship2.getId(), createKeyBinding2()))), GameStatus.PLAY, 0.0, ScoreBoard(HashMap()))
+        return GameState(
+            listOf( starship1, starship2, asteroid),
+            HashMap(mapOf(Pair(starship1.getId(), createKeyBinding1()), Pair(starship2.getId(), createKeyBinding2()))),
+            GameStatus.PLAY,
+            0.0,
+            ScoreBoard(mapOf(Pair(starship1.getId(), 0), Pair(starship2.getId(), 0))),
+            GameConfig(1, 100, 240.00),
+            0.0
+        )
     }
 
-    fun buildStarship(life: Int, weapon: Weapon, maxSpeed: Double, acceleration: Double, mover: Mover, position: Position): Starship {
-        return Starship("starship_" + UUID.randomUUID().toString(), "Classic Starship", life, weapon, position, maxSpeed, acceleration, 0.0, 0.0 ,mover)
+    fun buildStarship(life: Int, weapon: Weapon, maxSpeed: Double, acceleration: Double, mover: Mover, position: Position, name: String, type: Int): Starship {
+        return Starship("starship_" + UUID.randomUUID().toString(), name, life, weapon, position, maxSpeed, acceleration, 0.0, 0.0 ,mover, type)
     }
 
     fun buildAsteroid(damage: Int, life: Int, position: Position, mover: Mover, speed: Double, rotation: Double): Asteroid{
@@ -33,12 +41,12 @@ class ClassicGameStateFactory: GameStateFactory {
         return this.buildAsteroid(getRandomInt(10, 20), getRandomInt(70, 100), position, Mover(), getRandomDouble(1, 4), rotation)
     }
 
-    fun buildWeapon(): Weapon {
-        return Weapon(Stack<Bullet>() , 10, 8.0);
+    fun buildWeapon(damage: Int, shotSpeed: Double, bulletColor: BulletColor): Weapon {
+        return Weapon(Stack<Bullet>() , damage, shotSpeed, bulletColor);
     }
 
-    override fun buildBullet(damage: Int, position: Position, speed: Double, rotation: Double, mover: Mover, starshipId: String): Bullet {
-        return Bullet("bullet_" + UUID.randomUUID().toString(), damage, 10, position.copy(x = position.getX() + 18), speed, rotation, mover, starshipId)
+    override fun buildBullet(damage: Int, position: Position, speed: Double, rotation: Double, mover: Mover, starshipId: String, color: BulletColor): Bullet {
+        return Bullet("bullet_" + UUID.randomUUID().toString(), damage, 10, position.copy(x = position.getX() + 18), speed, rotation, mover, starshipId, color)
     }
 
     private fun createKeyBinding1(): Map<KeyCode, Action> {

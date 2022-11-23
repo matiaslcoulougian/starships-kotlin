@@ -8,7 +8,8 @@ data class Bullet(
     private val speed: Double,
     private val rotation: Double,
     private val mover: Mover,
-    private val starshipId: String
+    private val starshipId: String,
+    private val color: BulletColor
 ): Collidable, Movable {
     override fun getSpeed(): Double = this.speed
     override fun getRotation(): Double = this.rotation
@@ -28,4 +29,5 @@ data class Bullet(
     fun getDamage(): Int = damage
     override fun getId(): String = id
     fun getStarshipId(): String = starshipId
+    fun getColor(): BulletColor = color
 }

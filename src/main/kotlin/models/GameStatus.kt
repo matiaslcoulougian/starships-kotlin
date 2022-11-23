@@ -2,5 +2,6 @@ package models
 
 enum class GameStatus {
     PLAY,
-    PAUSE
+    PAUSE,
+    OVER
 }

@@ -7,5 +7,7 @@ data class GameState(
     val keyBinding: Map<String, Map<KeyCode, Action>>,
     val status: GameStatus,
     val timeSinceLastAsteroid: Double,
-    val scoreBoard: ScoreBoard
+    val scoreBoard: ScoreBoard,
+    val gameConfig: GameConfig,
+    val initialTime: Double
 )

@@ -10,7 +10,8 @@ data class Starship(
     private val acceleration: Double,
     private val speed: Double,
     private val rotation: Double,
-    private val mover: Mover
+    private val mover: Mover,
+    private val type: Int
     ): Movable, Collidable {
     fun accelerate(): Starship {
         return if (speed < maxSpeed) {
@@ -54,4 +55,6 @@ data class Starship(
     override fun getId(): String = id;
     fun getWeapon(): Weapon = weapon
     fun getMover(): Mover = mover
+    fun getName(): String = name
+    fun getType(): Int = type
 }
