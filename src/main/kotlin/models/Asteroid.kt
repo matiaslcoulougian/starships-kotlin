@@ -20,7 +20,7 @@ data class Asteroid(
     }
     override fun collide(collidable: Collidable): Collidable {
         return when (collidable) {
-            is Asteroid -> copy(life = life - collidable.getDamage())
+            is Asteroid -> this
             is Starship -> copy(life = 0)
             is Bullet -> copy(life = life - collidable.getDamage())
             else -> this

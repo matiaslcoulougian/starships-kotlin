@@ -41,7 +41,6 @@ class Starships() : Application() {
     override fun start(primaryStage: Stage) {
         var gameEngine = GameEngine(gameStateFactory.buildGame(), gameStateFactory)
         val adapter = GameModelToUIAdapter()
-
         var starshipNames = gameEngine.gameState.movables.filterIsInstance<Starship>().map { Pair(it.getId(), it.getName()) }
 
         adapter.addElements(facade.elements, gameEngine.gameState.movables, gameEngine.gameState.boosters)
@@ -98,26 +97,31 @@ class Starships() : Application() {
 
         val pane = StackPane()
 
+        var pausedTimePassed = 0.0
+
         facade.timeListenable.addEventListener(object: EventListener<TimePassed> {
             override fun handle(event: TimePassed) {
-                if (gameEngine.gameState.status === GameStatus.PLAY) {
-                    gameEngine = gameEngine.handleTimePassed(event.currentTimeInSeconds, event.secondsSinceLastTime)
-                    adapter.updateElementsPosition(facade.elements, gameEngine.gameState.movables)
-                    adapter.addElements(facade.elements, gameEngine.gameState.movables, gameEngine.gameState.boosters)
-                    timeText.text = getTimeText(gameEngine, event.currentTimeInSeconds)
-                    keysPressed.forEach {
-                        gameEngine = gameEngine.handleKeyPressed(it, event.secondsSinceLastTime)
+                when (gameEngine.gameState.status) {
+                    GameStatus.PLAY -> {
+                        gameEngine = gameEngine.handleTimePassed(event.currentTimeInSeconds, event.secondsSinceLastTime)
                         adapter.updateElementsPosition(facade.elements, gameEngine.gameState.movables)
                         adapter.addElements(facade.elements, gameEngine.gameState.movables, gameEngine.gameState.boosters)
+                        timeText.text = getTimeText(gameEngine, event.currentTimeInSeconds)
+                        keysPressed.forEach {
+                            gameEngine = gameEngine.handleKeyPressed(it, event.secondsSinceLastTime)
+                            adapter.updateElementsPosition(facade.elements, gameEngine.gameState.movables)
+                            adapter.addElements(facade.elements, gameEngine.gameState.movables, gameEngine.gameState.boosters)
+                        }
                     }
-                }
-                if (gameEngine.gameState.status === GameStatus.OVER) {
-                    if (!stats.children.contains(gameOverDiv)) {
-                        stats.children.removeAll(pointsDiv, lifeDiv, timeDiv)
-                        adapter.removeAllElements(facade.elements, gameEngine.gameState.movables, gameEngine.gameState.boosters)
-                        gameOverText.text = getWinnerText(gameEngine)
-                        stats.children.add(gameOverDiv)
+                    GameStatus.OVER -> {
+                        if (!stats.children.contains(gameOverDiv)) {
+                            stats.children.removeAll(pointsDiv, lifeDiv, timeDiv)
+                            adapter.removeAllElements(facade.elements, gameEngine.gameState.movables, gameEngine.gameState.boosters)
+                            gameOverText.text = getWinnerText(gameEngine)
+                            stats.children.add(gameOverDiv)
+                        }
                     }
+                    GameStatus.PAUSE -> pausedTimePassed += event.secondsSinceLastTime
                 }
             }
         })
@@ -157,7 +161,10 @@ class Starships() : Application() {
 
         keyTracker.keyReleasedListenable.addEventListener(object: EventListener<KeyReleased> {
             override fun handle(event: KeyReleased) {
-                if (event.key === KeyCode.P) gameEngine = gameEngine.handlePauseAndResume()
+                if (event.key === KeyCode.P) {
+                    if (gameEngine.gameState.status == GameStatus.PLAY) pausedTimePassed = 0.0
+                    gameEngine = gameEngine.handlePauseAndResume(pausedTimePassed)
+                }
                 if (event.key === KeyCode.R && gameEngine.gameState.status == GameStatus.OVER) {
                     gameEngine = GameEngine(gameStateFactory.buildGame(), gameStateFactory)
                     starshipNames = gameEngine.gameState.movables.filterIsInstance<Starship>().map { Pair(it.getId(), it.getName()) }
@@ -170,17 +177,15 @@ class Starships() : Application() {
                         return
                     }
                 }
-                if (event.key === KeyCode.S && gameEngine.gameState.status == GameStatus.PAUSE) saveGame(gameEngine)
+                if (event.key === KeyCode.S && gameEngine.gameState.status == GameStatus.PAUSE) saveGame(gameEngine.gameState)
                 if (event.key === KeyCode.L && gameEngine.gameState.status == GameStatus.PAUSE) {
                     val loadedGame = loadGame()
-                    if (loadedGame != null) {
-                        gameEngine = loadedGame
-                        starshipNames = gameEngine.gameState.movables.filterIsInstance<Starship>().map { Pair(it.getId(), it.getName()) }
-                        adapter.addElements(facade.elements, gameEngine.gameState.movables, gameEngine.gameState.boosters)
-                        pointsText.text = getScoreText(gameEngine, starshipNames)
-                        lifeText.text = getLifeText(gameEngine)
-                        return
-                    }
+                    gameEngine = gameEngine.copy(gameState = loadedGame)
+                    starshipNames = gameEngine.gameState.movables.filterIsInstance<Starship>().map { Pair(it.getId(), it.getName()) }
+                    adapter.addElements(facade.elements, gameEngine.gameState.movables, gameEngine.gameState.boosters)
+                    pointsText.text = getScoreText(gameEngine, starshipNames)
+                    lifeText.text = getLifeText(gameEngine)
+                    return
                 }
                 gameEngine = gameEngine.handleShoot(event.key)
                 adapter.updateElementsPosition(facade.elements, gameEngine.gameState.movables)

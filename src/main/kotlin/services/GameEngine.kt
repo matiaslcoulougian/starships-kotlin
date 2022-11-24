@@ -1,5 +1,6 @@
 package services
 
+import edu.austral.ingsis.starships.ui.TimePassed
 import factories.GameStateFactory
 import javafx.scene.input.KeyCode
 import models.*
@@ -129,9 +130,9 @@ data class GameEngine(
         return this
     }
 
-    fun handlePauseAndResume(): GameEngine {
+    fun handlePauseAndResume(pauseTimePassed: Double): GameEngine {
         return if (gameState.status === GameStatus.PLAY) copy(gameState = gameState.copy(status = GameStatus.PAUSE))
-        else copy(gameState = gameState.copy(status = GameStatus.PLAY))
+        else copy(gameState = gameState.copy(status = GameStatus.PLAY, initialTime = gameState.initialTime + pauseTimePassed))
     }
 
     private fun accelerate(starshipId: String): GameEngine {

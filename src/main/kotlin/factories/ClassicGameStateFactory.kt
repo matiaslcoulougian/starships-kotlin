@@ -2,26 +2,23 @@ package factories
 
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.fasterxml.jackson.module.kotlin.readValue
+import com.google.gson.Gson
 
 import javafx.scene.input.KeyCode
 import ui.STAGE_HEIGHT
 import ui.STAGE_WIDTH
 import models.*
-import utils.Configuration
+import persistance.loadConfigs
 import utils.KeyBindingConfig
 import utils.getRandomDouble
 import utils.getRandomInt
-import java.io.File
 import java.util.*
 import kotlin.collections.HashMap
 
 class ClassicGameStateFactory: GameStateFactory {
     override fun buildGame(): GameState {
 
-        // Read configurations json file
-        val mapper = jacksonObjectMapper()
-        val jsonString: String = File("./src/main/resources/configs/config.json").readText(Charsets.UTF_8)
-        val configurations = mapper.readValue<Configuration>(jsonString)
+        val configurations = loadConfigs()
 
         //create move and movables list
         val mover = Mover()
