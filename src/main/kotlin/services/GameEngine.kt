@@ -110,10 +110,12 @@ data class GameEngine(
 
     fun handleElementOutOfBounds(id: String): GameEngine {
         val movable = gameState.movables.find { it.getId() == id }
-        if (movable != null && movable !is Starship) {
-            val movables = gameState.movables.toMutableList()
-            movables.remove(movable)
-            return copy(gameState = gameState.copy(movables = movables))
+        if (movable != null) {
+            if (movable !is Starship || movable.getSpeed() != 0.0) {
+                val movables = gameState.movables.toMutableList()
+                movables.remove(movable)
+                return copy(gameState = gameState.copy(movables = movables))
+            }
         }
         return this
     }

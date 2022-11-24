@@ -165,7 +165,8 @@ class Starships() : Application() {
                     if (gameEngine.gameState.status == GameStatus.PLAY) pausedTimePassed = 0.0
                     gameEngine = gameEngine.handlePauseAndResume(pausedTimePassed)
                 }
-                if (event.key === KeyCode.R && gameEngine.gameState.status == GameStatus.OVER) {
+                if (event.key === KeyCode.R && (gameEngine.gameState.status == GameStatus.OVER || gameEngine.gameState.status == GameStatus.PAUSE )) {
+                    adapter.removeAllElements(facade.elements, gameEngine.gameState.movables, gameEngine.gameState.boosters)
                     gameEngine = GameEngine(gameStateFactory.buildGame(), gameStateFactory)
                     starshipNames = gameEngine.gameState.movables.filterIsInstance<Starship>().map { Pair(it.getId(), it.getName()) }
                     if (stats.children.contains(gameOverDiv)) {
