@@ -23,6 +23,8 @@ data class Bullet(
             is Asteroid -> copy(life = 0)
             is Starship -> if (collidable.getId() != starshipId) copy(life = 0) else this
             is Bullet -> this
+            is Booster -> copy(life = 0)
+            else -> this
         }
     }
     override fun getLife(): Int = life

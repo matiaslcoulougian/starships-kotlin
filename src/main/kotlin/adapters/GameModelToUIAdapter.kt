@@ -4,15 +4,18 @@ import edu.austral.ingsis.starships.ui.ElementColliderType
 import edu.austral.ingsis.starships.ui.ElementModel
 import edu.austral.ingsis.starships.ui.ImageRef
 import models.*
+import kotlin.math.log
 
 class GameModelToUIAdapter {
     companion object {
         val STARSHIP_IMAGE_REF_1 = ImageRef("starship", 80.0, 80.0)
-        val STARSHIP_IMAGE_REF_2 = ImageRef("starship2", 90.0, 90.0)
-        val ASTEROID_IMAGE_REF = ImageRef("asteroid", 100.0, 100.0)
+        val STARSHIP_IMAGE_REF_2 = ImageRef("starship2", 70.0, 70.0)
+        val STARSHIP_IMAGE_REF_3 = ImageRef("starship3", 80.0, 80.0)
         val BULlET_IMAGE_REF_BLUE = ImageRef("bullet-blue", 30.0, 30.0)
         val BULlET_IMAGE_REF_RED = ImageRef("bullet-red", 30.0, 30.0)
-        val EXPLODED_ASTEROID = ImageRef("explosion", 100.0, 100.0)
+        val ASTEROID_IMAGE_REF_1 = ImageRef("asteroid1", 100.0, 100.0)
+        val ASTEROID_IMAGE_REF_2 = ImageRef("asteroid2", 100.0, 100.0)
+        val HEALTH_BOOSTER = ImageRef("heart", 50.0, 50.0)
     }
 
     fun adaptStarship(starship: Starship): ElementModel {
@@ -20,7 +23,7 @@ class GameModelToUIAdapter {
             starship.getId(),
             starship.getPosition().getX(),
             starship.getPosition().getY(),
-            60.0,
+            70.0,
             70.0,
             starship.getRotation(),
             ElementColliderType.Elliptical,
@@ -29,15 +32,16 @@ class GameModelToUIAdapter {
     }
 
     fun adaptAsteroid(asteroid: Asteroid): ElementModel {
+        val image = if (asteroid.getType() == 1) ASTEROID_IMAGE_REF_1 else ASTEROID_IMAGE_REF_2
         return ElementModel(
             asteroid.getId(),
             asteroid.getPosition().getX(),
             asteroid.getPosition().getY(),
-            asteroid.getLife().toDouble(),
-            asteroid.getLife().toDouble(),
+            asteroid.getLife().toDouble() * 1.6,
+            asteroid.getLife().toDouble() * 1.6,
             asteroid.getRotation(),
             ElementColliderType.Elliptical,
-            ASTEROID_IMAGE_REF
+            image
         )
     }
 
@@ -54,10 +58,29 @@ class GameModelToUIAdapter {
         )
     }
 
-    fun addElements(elements: MutableMap<String, ElementModel>, movables: List<Movable>) {
+    fun adaptBooster(booster: Booster): ElementModel {
+        return ElementModel(
+            booster.getId(),
+            booster.getPosition().getX(),
+            booster.getPosition().getY(),
+            50.0,
+            50.0,
+            0.0,
+            ElementColliderType.Elliptical,
+            getBoosterImage(booster.getType())
+        )
+    }
+
+    fun addElements(elements: MutableMap<String, ElementModel>, movables: List<Movable>, boosters: List<Booster>) {
         movables.forEach {
             if (elements[it.getId()] == null) {
-                elements[it.getId()] = elementToUI(it)
+                val adaptedMovable = movableToUI(it)
+                if (adaptedMovable != null) elements[it.getId()] = adaptedMovable
+            }
+        }
+        boosters.forEach {
+            if (elements[it.getId()] == null) {
+                elements[it.getId()] = boosterToUI(it)
             }
         }
     }
@@ -74,31 +97,42 @@ class GameModelToUIAdapter {
         }
     }
 
-    fun removeElements(elements: MutableMap<String, ElementModel>, movables: List<Movable>) {
-        val toRemove = elements.keys.filter { !movables.map { movable -> movable.getId() }.contains(it) }
-        toRemove.forEach {
+    fun removeElements(elements: MutableMap<String, ElementModel>, movables: List<Movable>, boosters: List<Booster>) {
+        val movablesToRemove = elements.keys.filter { !movables.map { movable -> movable.getId() }.contains(it) && !it.contains("booster")}
+        val boostersToRemove = elements.keys.filter { !boosters.map { booster -> booster.getId() }.contains(it) && it.contains("booster") }
+        movablesToRemove.forEach {
+            elements.remove(it)
+        }
+        boostersToRemove.forEach {
             elements.remove(it)
         }
     }
 
-    fun removeAllElements(elements: MutableMap<String, ElementModel>, movables: List<Movable>) {
+    fun removeAllElements(elements: MutableMap<String, ElementModel>, movables: List<Movable>, boosters: List<Booster>) {
         movables.forEach {
+            elements.remove(it.getId())
+        }
+        boosters.forEach {
             elements.remove(it.getId())
         }
     }
 
-    private fun elementToUI(movable: Movable): ElementModel {
+    private fun movableToUI(movable: Movable): ElementModel? {
         return when (movable) {
             is Starship -> adaptStarship(movable)
             is Asteroid -> adaptAsteroid(movable)
             is Bullet -> adaptBullet(movable)
+            else -> null
         }
     }
+
+    private fun boosterToUI(booster: Booster): ElementModel = adaptBooster(booster)
 
     private fun getStarshipImage(type: Int): ImageRef {
         return when (type) {
             1 -> STARSHIP_IMAGE_REF_1
             2 -> STARSHIP_IMAGE_REF_2
+            3 -> STARSHIP_IMAGE_REF_3
             else -> STARSHIP_IMAGE_REF_1
         }
     }
@@ -107,6 +141,12 @@ class GameModelToUIAdapter {
         return when (color) {
             BulletColor.BLUE -> BULlET_IMAGE_REF_BLUE
             BulletColor.RED -> BULlET_IMAGE_REF_RED
+        }
+    }
+
+    private fun getBoosterImage(type: BoosterType): ImageRef {
+        return when (type) {
+            BoosterType.HEALTH -> HEALTH_BOOSTER
         }
     }
 }

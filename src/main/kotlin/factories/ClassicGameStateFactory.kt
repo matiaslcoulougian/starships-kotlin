@@ -1,27 +1,75 @@
 package factories
 
+import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
+import com.fasterxml.jackson.module.kotlin.readValue
+
 import javafx.scene.input.KeyCode
 import ui.STAGE_HEIGHT
 import ui.STAGE_WIDTH
 import models.*
+import utils.Configuration
+import utils.KeyBindingConfig
 import utils.getRandomDouble
 import utils.getRandomInt
+import java.io.File
 import java.util.*
 import kotlin.collections.HashMap
 
 class ClassicGameStateFactory: GameStateFactory {
     override fun buildGame(): GameState {
-        val mover = Mover();
-        val starship1: Starship = buildStarship(100, buildWeapon(8, 11.0, BulletColor.RED), 50.0, 0.5, mover, Position(370.0, 400.0), "Matu", 2)
-        val starship2: Starship = buildStarship(500, buildWeapon(8, 12.0, BulletColor.BLUE), 50.0, 0.5, mover, Position(430.0, 400.0), "NPC", 1)
-        val asteroid = buildAsteroid(5, 50, Position(1.0, 1.0), mover, 3.0, 80.0)
+
+        // Read configurations json file
+        val mapper = jacksonObjectMapper()
+        val jsonString: String = File("./src/main/resources/configs/config.json").readText(Charsets.UTF_8)
+        val configurations = mapper.readValue<Configuration>(jsonString)
+
+        //create move and movables list
+        val mover = Mover()
+        val movables: MutableList<Movable> = mutableListOf()
+
+        //add starships from config
+        for (i in 0 until configurations.playersAmount) {
+            movables.add(
+                buildStarship(
+                    configurations.starshipsLife,
+                    buildWeapon(
+                        configurations.bullets[i].damage,
+                        configurations.bullets[i].speed,
+                        getBulletColor(configurations.bullets[i].color)
+                    ),
+                    5.0,
+                    0.5,
+                    mover,
+                    createRandomPosition(),
+                    configurations.playersNames[i],
+                    configurations.starships[i].type)
+            )
+        }
+
+        //create scoreboard
+        val scoreBoardMap: MutableMap<String, Int> = mutableMapOf()
+        movables.forEach {
+            scoreBoardMap[it.getId()] = 0
+        }
+
+//        val starship1: Starship = buildStarship(500, buildWeapon(8, 11.0, BulletColor.RED), 5.0, 0.5, mover, Position(370.0, 400.0), "Mati", 2)
+//        val starship2: Starship = buildStarship(500, buildWeapon(8, 11.0, BulletColor.BLUE), 5.0, 0.5, mover, Position(430.0, 400.0), "NPC", 3)
         return GameState(
-            listOf( starship1, starship2, asteroid),
-            HashMap(mapOf(Pair(starship1.getId(), createKeyBinding1()), Pair(starship2.getId(), createKeyBinding2()))),
+            movables,
+            listOf(),
             GameStatus.PLAY,
             0.0,
-            ScoreBoard(mapOf(Pair(starship1.getId(), 0), Pair(starship2.getId(), 0))),
-            GameConfig(1, 100, 240.00),
+            0.0,
+            ScoreBoard(scoreBoardMap),
+            GameConfig(
+                configurations.playersAmount,
+                configurations.winningPoints,
+                configurations.gameTime,
+                createKeyBindingMap(movables.filterIsInstance<Starship>(), configurations.keyBinding),
+                configurations.asteroidSpawnRate,
+                configurations.asteroidsDamage,
+                configurations.boosterSpawnRate
+            ),
             0.0
         )
     }
@@ -30,15 +78,15 @@ class ClassicGameStateFactory: GameStateFactory {
         return Starship("starship_" + UUID.randomUUID().toString(), name, life, weapon, position, maxSpeed, acceleration, 0.0, 0.0 ,mover, type)
     }
 
-    fun buildAsteroid(damage: Int, life: Int, position: Position, mover: Mover, speed: Double, rotation: Double): Asteroid{
-        return Asteroid("asteroid_" + UUID.randomUUID().toString(), damage, life, position, speed, rotation, mover)
+    fun buildAsteroid(damage: Int, life: Int, position: Position, mover: Mover, speed: Double, rotation: Double, type: Int): Asteroid{
+        return Asteroid("asteroid_" + UUID.randomUUID().toString(), damage, life, position, speed, rotation, mover, type)
     }
 
-    override fun buildRandomAsteroid(): Asteroid {
+    override fun buildRandomAsteroid(damage: Int): Asteroid {
         val randomInt = getRandomInt(1, 4)
-        val position = this.createRandomPosition(randomInt)
+        val position = this.createRandomBorderPosition(randomInt)
         val rotation = getRandomRotation(randomInt)
-        return this.buildAsteroid(getRandomInt(10, 20), getRandomInt(70, 100), position, Mover(), getRandomDouble(1, 4), rotation)
+        return this.buildAsteroid(damage, getRandomInt(40, 60), position, Mover(), getRandomDouble(1, 4), rotation, getRandomInt(1, 2))
     }
 
     fun buildWeapon(damage: Int, shotSpeed: Double, bulletColor: BulletColor): Weapon {
@@ -48,6 +96,12 @@ class ClassicGameStateFactory: GameStateFactory {
     override fun buildBullet(damage: Int, position: Position, speed: Double, rotation: Double, mover: Mover, starshipId: String, color: BulletColor): Bullet {
         return Bullet("bullet_" + UUID.randomUUID().toString(), damage, 10, position.copy(x = position.getX() + 18), speed, rotation, mover, starshipId, color)
     }
+
+    fun buildBooster(type: BoosterType, position: Position): Booster {
+        return Booster("booster_" + UUID.randomUUID().toString(), type , position, 1)
+    }
+
+    override fun buildRandomBooster(): Booster = buildBooster(BoosterType.HEALTH, createRandomPosition())
 
     private fun createKeyBinding1(): Map<KeyCode, Action> {
         return HashMap(mapOf(
@@ -65,11 +119,26 @@ class ClassicGameStateFactory: GameStateFactory {
             Pair(KeyCode.S, Action.DECELERATE),
             Pair(KeyCode.A, Action.ROTATE_ANTICLOCKWISE),
             Pair(KeyCode.D, Action.ROTATE_CLOCKWISE),
-            Pair(KeyCode.R, Action.SHOOT)
+            Pair(KeyCode.Q, Action.SHOOT)
         ))
     }
 
-    fun createRandomPosition (positionVariant: Int): Position {
+    private fun createKeyBindingMap(starships: List<Starship>, keyBindingConfig: List<KeyBindingConfig>): Map<String, Map<KeyCode, Action>> {
+        val keyBindings: MutableMap<String, Map<KeyCode, Action>> = mutableMapOf()
+        keyBindingConfig.forEach {
+            val starship = starships.find { starship -> starship.getName() == it.name }
+            if (starship != null) {
+                val keyCodes: MutableMap<KeyCode, Action> = mutableMapOf()
+                it.keys.forEach {
+                    keyBindingConfig -> keyCodes[KeyCode.valueOf(keyBindingConfig.value)] = Action.valueOf(keyBindingConfig.key)
+                }
+                keyBindings[starship.getId()] = keyCodes
+            }
+        }
+        return keyBindings
+    }
+
+    fun createRandomBorderPosition (positionVariant: Int): Position {
         return when (positionVariant) {
             1 -> Position(getRandomDouble(0, STAGE_WIDTH.toInt()), 0.0)
             2 -> Position(getRandomDouble(0, STAGE_WIDTH.toInt()), STAGE_HEIGHT)
@@ -78,6 +147,9 @@ class ClassicGameStateFactory: GameStateFactory {
             else -> Position(0.0, 0.0)
         }
     }
+
+    fun createRandomPosition (): Position = Position(getRandomDouble(20, STAGE_WIDTH.toInt() - 20), getRandomDouble(20, STAGE_HEIGHT.toInt() - 20))
+
 
     fun getRandomRotation(rotationVariant: Int): Double {
         return when (rotationVariant) {
@@ -89,5 +161,12 @@ class ClassicGameStateFactory: GameStateFactory {
         }
     }
 
+    fun getBulletColor(color: String): BulletColor {
+        return when (color) {
+            "BLUE" -> BulletColor.BLUE
+            "RED" -> BulletColor.RED
+            else -> BulletColor.BLUE
+        }
+    }
 
 }

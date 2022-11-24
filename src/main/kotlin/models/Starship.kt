@@ -31,12 +31,17 @@ data class Starship(
 
     fun stop(): Starship = copy(speed = 0.0)
 
-    fun rotate(degrees: Int): Starship = copy(rotation = rotation + degrees)
+    fun rotate(degrees: Double): Starship = copy(rotation = rotation + degrees)
     override fun collide(collidable: Collidable): Starship {
         return when (collidable) {
             is Asteroid -> copy(life = life - collidable.getDamage())
             is Bullet -> if (collidable.getStarshipId() != id) copy(life = life - collidable.getDamage()) else this
             is Starship -> this
+            is Booster ->
+                return when (collidable.getType()) {
+                    BoosterType.HEALTH -> copy(life = life + 150)
+                }
+            else -> this
         }
     }
 

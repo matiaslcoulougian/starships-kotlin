@@ -1,0 +1,36 @@
+{
+  "playersAmount": 1,
+  "playersNames": ["Matute"],
+  "starshipsLife": 1000,
+  "winningPoints": 200,
+  "gameTime": 120.0,
+  "keyBinding": [
+    {
+      "name": "Matute",
+      "keys": {
+        "ACCELERATE": "UP",
+        "DECELERATE": "DOWN",
+        "ROTATE_CLOCKWISE": "RIGHT",
+        "ROTATE_ANTICLOCKWISE": "LEFT",
+        "SHOOT": "SPACE"
+      }
+    }
+  ],
+  "starships": [
+    {
+      "playerName": "Matute",
+      "type": 1
+    }
+  ],
+  "bullets": [
+    {
+      "playerName": "Matute",
+      "color": "RED",
+      "damage": 10,
+      "speed": 15.0
+    }
+  ],
+  "asteroidSpawnRate": 0.5,
+  "boosterSpawnRate": 7.0,
+  "asteroidsDamage": 100
+}

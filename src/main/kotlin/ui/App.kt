@@ -19,6 +19,8 @@ import javafx.scene.text.Text
 import javafx.stage.Stage
 import models.GameStatus
 import models.Starship
+import persistance.loadGame
+import persistance.saveGame
 
 import services.GameEngine
 
@@ -35,14 +37,14 @@ class Starships() : Application() {
     private val facade = ElementsViewFacade(imageResolver)
     private val keyTracker = KeyTracker()
     private val gameStateFactory = ClassicGameStateFactory()
+    private val keysPressed: MutableList<KeyCode> = mutableListOf<KeyCode>()
     override fun start(primaryStage: Stage) {
-
         var gameEngine = GameEngine(gameStateFactory.buildGame(), gameStateFactory)
         val adapter = GameModelToUIAdapter()
 
-        val starshipNames = gameEngine.gameState.movables.filterIsInstance<Starship>().map { Pair(it.getId(), it.getName()) }
+        var starshipNames = gameEngine.gameState.movables.filterIsInstance<Starship>().map { Pair(it.getId(), it.getName()) }
 
-        adapter.addElements(facade.elements, gameEngine.gameState.movables)
+        adapter.addElements(facade.elements, gameEngine.gameState.movables, gameEngine.gameState.boosters)
 
         val pointsText = Text(getScoreText(gameEngine, starshipNames))
         val lifeText = Text(getLifeText(gameEngine))
@@ -101,13 +103,18 @@ class Starships() : Application() {
                 if (gameEngine.gameState.status === GameStatus.PLAY) {
                     gameEngine = gameEngine.handleTimePassed(event.currentTimeInSeconds, event.secondsSinceLastTime)
                     adapter.updateElementsPosition(facade.elements, gameEngine.gameState.movables)
-                    adapter.addElements(facade.elements, gameEngine.gameState.movables)
-                    timeText.text = (gameEngine.gameState.gameConfig.gameTime - (event.currentTimeInSeconds - gameEngine.gameState.initialTime)).toInt().toString()
+                    adapter.addElements(facade.elements, gameEngine.gameState.movables, gameEngine.gameState.boosters)
+                    timeText.text = getTimeText(gameEngine, event.currentTimeInSeconds)
+                    keysPressed.forEach {
+                        gameEngine = gameEngine.handleKeyPressed(it, event.secondsSinceLastTime)
+                        adapter.updateElementsPosition(facade.elements, gameEngine.gameState.movables)
+                        adapter.addElements(facade.elements, gameEngine.gameState.movables, gameEngine.gameState.boosters)
+                    }
                 }
                 if (gameEngine.gameState.status === GameStatus.OVER) {
                     if (!stats.children.contains(gameOverDiv)) {
                         stats.children.removeAll(pointsDiv, lifeDiv, timeDiv)
-                        adapter.removeAllElements(facade.elements, gameEngine.gameState.movables)
+                        adapter.removeAllElements(facade.elements, gameEngine.gameState.movables, gameEngine.gameState.boosters)
                         gameOverText.text = getWinnerText(gameEngine)
                         stats.children.add(gameOverDiv)
                     }
@@ -119,7 +126,7 @@ class Starships() : Application() {
             override fun handle(event: Collision) {
                 if (gameEngine.gameState.status == GameStatus.PLAY) {
                     gameEngine = gameEngine.handleCollision(event.element1Id, event.element2Id)
-                    adapter.removeElements(facade.elements, gameEngine.gameState.movables)
+                    adapter.removeElements(facade.elements, gameEngine.gameState.movables, gameEngine.gameState.boosters)
                     pointsText.text = getScoreText(gameEngine, starshipNames)
                     lifeText.text = getLifeText(gameEngine)
                 }
@@ -129,11 +136,7 @@ class Starships() : Application() {
         keyTracker.keyPressedListenable.addEventListener(object: EventListener<KeyPressed> {
             override fun handle(event: KeyPressed) {
                 if (gameEngine.gameState.status === GameStatus.PLAY) {
-                    event.currentPressedKeys.forEach {
-                        gameEngine = gameEngine.handleKeyPressed(it)
-                        adapter.updateElementsPosition(facade.elements, gameEngine.gameState.movables)
-                        adapter.addElements(facade.elements, gameEngine.gameState.movables)
-                    }
+                    if (!keysPressed.contains(event.key)) keysPressed.add(event.key)
                 }
             }
         })
@@ -141,7 +144,7 @@ class Starships() : Application() {
         facade.outOfBoundsListenable.addEventListener(object: EventListener<OutOfBounds> {
             override fun handle(event: OutOfBounds) {
                 gameEngine = gameEngine.handleElementOutOfBounds(event.id)
-                adapter.removeElements(facade.elements, gameEngine.gameState.movables)
+                adapter.removeElements(facade.elements, gameEngine.gameState.movables, gameEngine.gameState.boosters)
             }
         })
 
@@ -155,6 +158,34 @@ class Starships() : Application() {
         keyTracker.keyReleasedListenable.addEventListener(object: EventListener<KeyReleased> {
             override fun handle(event: KeyReleased) {
                 if (event.key === KeyCode.P) gameEngine = gameEngine.handlePauseAndResume()
+                if (event.key === KeyCode.R && gameEngine.gameState.status == GameStatus.OVER) {
+                    gameEngine = GameEngine(gameStateFactory.buildGame(), gameStateFactory)
+                    starshipNames = gameEngine.gameState.movables.filterIsInstance<Starship>().map { Pair(it.getId(), it.getName()) }
+                    if (stats.children.contains(gameOverDiv)) {
+                        stats.children.addAll(pointsDiv, lifeDiv, timeDiv)
+                        stats.children.remove(gameOverDiv)
+                        pointsText.text = getScoreText(gameEngine, starshipNames)
+                        lifeText.text = getLifeText(gameEngine)
+                        adapter.addElements(facade.elements, gameEngine.gameState.movables, gameEngine.gameState.boosters)
+                        return
+                    }
+                }
+                if (event.key === KeyCode.S && gameEngine.gameState.status == GameStatus.PAUSE) saveGame(gameEngine)
+                if (event.key === KeyCode.L && gameEngine.gameState.status == GameStatus.PAUSE) {
+                    val loadedGame = loadGame()
+                    if (loadedGame != null) {
+                        gameEngine = loadedGame
+                        starshipNames = gameEngine.gameState.movables.filterIsInstance<Starship>().map { Pair(it.getId(), it.getName()) }
+                        adapter.addElements(facade.elements, gameEngine.gameState.movables, gameEngine.gameState.boosters)
+                        pointsText.text = getScoreText(gameEngine, starshipNames)
+                        lifeText.text = getLifeText(gameEngine)
+                        return
+                    }
+                }
+                gameEngine = gameEngine.handleShoot(event.key)
+                adapter.updateElementsPosition(facade.elements, gameEngine.gameState.movables)
+                adapter.addElements(facade.elements, gameEngine.gameState.movables, gameEngine.gameState.boosters)
+                keysPressed.remove(event.key)
             }
         })
 
@@ -210,6 +241,22 @@ class Starships() : Application() {
         }
         else {
             "Game Over"
+        }
+    }
+
+    private fun getTimeText(gameEngine: GameEngine, currentTime: Double): String {
+        val secondsLeft = (gameEngine.gameState.gameConfig.gameTime - (currentTime - gameEngine.gameState.initialTime)).toInt()
+        return if (secondsLeft < 60 )
+            if (secondsLeft < 10) "0$secondsLeft"
+            else secondsLeft.toString()
+        else {
+            val minutes = (secondsLeft / 60).toInt()
+            var stringMinutes = minutes.toString()
+            if (minutes < 10) stringMinutes = "0$stringMinutes"
+            val seconds = secondsLeft - minutes * 60
+            val stringSeconds = seconds.toString()
+            if (seconds < 10) "$stringMinutes:0$stringSeconds"
+            else "$stringMinutes:$stringSeconds"
         }
     }
 
