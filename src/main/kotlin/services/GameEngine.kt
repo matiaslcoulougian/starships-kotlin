@@ -1,9 +1,12 @@
 package services
 
-import edu.austral.ingsis.starships.ui.TimePassed
 import factories.GameStateFactory
 import javafx.scene.input.KeyCode
 import models.*
+import ui.STAGE_HEIGHT
+import ui.STAGE_WIDTH
+import utils.getRandomDouble
+import utils.getRandomInt
 
 data class GameEngine(
     val gameState: GameState,
@@ -36,8 +39,8 @@ data class GameEngine(
         var collidableBooster = booster as Collidable
         collidableMovable = collidableMovable.collide(collidableBooster)
         collidableBooster = collidableBooster.collide(collidableMovable)
-        if (collidableBooster.getLife() > 0) boosters.add(collidableBooster as Booster)
-        if (collidableMovable.getLife() > 0) movables.add(collidableMovable as Movable)
+        if (collidableBooster.isAlive()) boosters.add(collidableBooster as Booster)
+        if (collidableMovable.isAlive()) movables.add(collidableMovable as Movable)
         return copy(gameState = gameState.copy(movables = movables, boosters = boosters))
     }
 
@@ -49,9 +52,9 @@ data class GameEngine(
         var collidable2 = movable2 as Collidable
         collidable1 = collidable1.collide(collidable2)
         collidable2 = collidable2.collide(collidable1)
-        if (collidable1.getLife() > 0) movables.add(collidable1 as Movable)
-        if (collidable2.getLife() > 0) movables.add(collidable2 as Movable)
-        val newScore = checkAndUpdateScore(collidable1, collidable2)
+        if (collidable1.isAlive()) movables.add(collidable1 as Movable)
+        if (collidable2.isAlive()) movables.add(collidable2 as Movable)
+        val newScore = gameState.scoreBoard.checkAndUpdateScores(collidable1, collidable2)
         return copy(gameState = gameState.copy(movables = movables, scoreBoard = newScore))
     }
 
@@ -59,7 +62,6 @@ data class GameEngine(
         val starshipAction = this.getStarshipIdForKey(key)
         if (starshipAction != null) {
             return when (starshipAction.second) {
-                //Action.SHOOT -> this.shoot(starshipAction.first)
                 Action.ROTATE_CLOCKWISE -> this.rotate(starshipAction.first, 270 * secondsSinceLastTime )
                 Action.ROTATE_ANTICLOCKWISE -> this.rotate(starshipAction.first, -270 * secondsSinceLastTime)
                 Action.ACCELERATE -> this.accelerate(starshipAction.first)
@@ -84,20 +86,8 @@ data class GameEngine(
         if (isGameOver && gameState.initialTime != 0.0) return copy(gameState = gameState.copy(status = GameStatus.OVER))
         val movables = gameState.movables.toMutableList()
         val boosters = gameState.boosters.toMutableList()
-
-        var timeSinceLastAsteroid = gameState.timeSinceLastAsteroid
-        timeSinceLastAsteroid = if (timeSinceLastAsteroid > gameState.gameConfig.asteroidSpawnRate) {
-            movables.add(gameStateFactory.buildRandomAsteroid(gameState.gameConfig.asteroidsDamage))
-            0.0
-        }
-        else timeSinceLastAsteroid + secondsSinceLastTime
-
-        var timeSinceLastBooster = gameState.timeSinceLastBooster
-        timeSinceLastBooster = if (timeSinceLastBooster > gameState.gameConfig.boosterSpawnRate) {
-            boosters.add(gameStateFactory.buildRandomBooster())
-            0.0
-        } else timeSinceLastBooster + secondsSinceLastTime
-
+        val timeSinceLastAsteroid = spawnAsteroid(gameState.timeSinceLastAsteroid, movables, secondsSinceLastTime)
+        val timeSinceLastBooster = spawnBooster(gameState.timeSinceLastBooster, boosters, secondsSinceLastTime)
         return copy(gameState = gameState.copy(
             movables = movables.map { it.move(secondsSinceLastTime) },
             timeSinceLastAsteroid = timeSinceLastAsteroid,
@@ -106,6 +96,33 @@ data class GameEngine(
             timeSinceLastBooster = timeSinceLastBooster
             )
         )
+    }
+
+    private fun spawnBooster(timeSinceLastBooster: Double, boosters: MutableList<Booster>, secondsSinceLastTime: Double): Double {
+        return if (timeSinceLastBooster > gameState.gameConfig.boosterSpawnRate) {
+            boosters.add(
+                gameStateFactory.buildRandomBooster(
+                    getRandomDouble(20, STAGE_WIDTH.toInt() - 20),
+                    getRandomDouble(20, STAGE_HEIGHT.toInt() - 20)
+                )
+            )
+            0.0
+        } else timeSinceLastBooster + secondsSinceLastTime
+    }
+
+    private fun spawnAsteroid(timeSinceLastAsteroid: Double, movables: MutableList<Movable>, secondsSinceLastTime: Double): Double {
+        return if (timeSinceLastAsteroid > gameState.gameConfig.asteroidSpawnRate) {
+            movables.add(
+                gameStateFactory.buildRandomAsteroid(
+                    gameState.gameConfig.asteroidsDamage,
+                    getRandomInt(1, 4),
+                    getRandomInt(40, 60),
+                    getRandomDouble(1, 4),
+                    getRandomInt(1, 2)
+                )
+            )
+            0.0
+        } else timeSinceLastAsteroid + secondsSinceLastTime
     }
 
     fun handleElementOutOfBounds(id: String): GameEngine {
@@ -137,52 +154,66 @@ data class GameEngine(
         else copy(gameState = gameState.copy(status = GameStatus.PLAY, initialTime = gameState.initialTime + pauseTimePassed))
     }
 
-    private fun accelerate(starshipId: String): GameEngine {
-        var starship = gameState.movables.find { it.getId() == starshipId }
-        if (starship != null) {
-            val movables = gameState.movables.toMutableList()
-            movables.remove(starship)
-            starship = (starship as Starship).accelerate()
-            movables.add(starship)
-            return copy(gameState = gameState.copy(movables = movables))
+    private fun withStarship(id: String, block: (Starship) -> GameEngine): GameEngine {
+        return when(val maybeStarship = gameState.movables.find { it.getId() == id }) {
+            is Starship -> block(maybeStarship)
+            else -> this
         }
-        return this
+    }
+
+    private fun accelerate(starshipId: String): GameEngine {
+        return withStarship(starshipId) { starship ->
+            accelerate(starship)
+        }
+    }
+
+    private fun accelerate(starship: Starship): GameEngine {
+        val movables = gameState.movables.toMutableList()
+        movables.remove(starship)
+        val nextStarship = starship.accelerate()
+        movables.add(nextStarship)
+        return copy(gameState = gameState.copy(movables = movables))
     }
 
     private fun decelerate(starshipId: String): GameEngine {
-        var starship = gameState.movables.find { it.getId() == starshipId }
-        if (starship != null) {
-            val movables = gameState.movables.toMutableList()
-            movables.remove(starship)
-            starship = (starship as Starship).decelerate()
-            movables.add(starship)
-            return copy(gameState = gameState.copy(movables = movables))
+        return withStarship(starshipId) {starship ->
+            decelerate(starship)
         }
-        return this
+    }
+
+    private fun decelerate(starship: Starship): GameEngine {
+        val movables = gameState.movables.toMutableList()
+        movables.remove(starship)
+        val nextStarship = starship.decelerate()
+        movables.add(nextStarship)
+        return copy(gameState = gameState.copy(movables = movables))
     }
 
     private fun shoot(starshipId: String): GameEngine {
-        val starship = gameState.movables.find { it.getId() == starshipId }
-        val bullets = gameState.movables.filterIsInstance<Bullet>()
-        if (starship != null && bullets.size <= 100) {
-            val movables = gameState.movables.toMutableList()
-            val bullet = gameStateFactory.buildBullet((starship as Starship).getWeapon().damage, starship.getPosition(), starship.getWeapon().shootSpeed, starship.getRotation(), starship.getMover(), starshipId, starship.getWeapon().bulletColor)
-            movables.add(bullet)
-            return copy(gameState = gameState.copy(movables = movables))
+        return withStarship(starshipId) { starship ->
+            shoot(starship)
         }
-        return this
+    }
+
+    private fun shoot(starship: Starship): GameEngine {
+        val movables = gameState.movables.toMutableList()
+        val bullet = gameStateFactory.buildBullet(starship.getWeapon().damage, starship.getPosition(), starship.getWeapon().shootSpeed, starship.getRotation(), starship.getMover(), starship.getId(), starship.getWeapon().bulletColor)
+        movables.add(bullet)
+        return copy(gameState = gameState.copy(movables = movables))
     }
 
     private fun rotate(starshipId: String, degrees: Double): GameEngine {
-        var starship = gameState.movables.find { it.getId() == starshipId }
-        if (starship != null) {
-            val movables = gameState.movables.toMutableList()
-            movables.remove(starship)
-            starship = (starship as Starship).rotate(degrees)
-            movables.add(starship)
-            return copy(gameState = gameState.copy(movables = movables))
+       return withStarship(starshipId) { starship ->
+            rotate(starship, degrees)
         }
-        return this
+    }
+
+    private fun rotate(starship: Starship, degrees: Double): GameEngine {
+        val movables = gameState.movables.toMutableList()
+        movables.remove(starship)
+        val next = starship.rotate(degrees)
+        movables.add(next)
+        return copy(gameState = gameState.copy(movables = movables))
     }
 
     private fun getStarshipIdForKey(key: KeyCode): Pair<String, Action>? {
@@ -194,40 +225,36 @@ data class GameEngine(
         return null
     }
 
-    private fun checkAndUpdateScore(collidable1: Collidable, collidable2: Collidable): ScoreBoard {
-        return if (collidable1 is Bullet && collidable2 is Asteroid && collidable2.getLife() <= 0) {
-            gameState.scoreBoard.addPoints(collidable1.getStarshipId(), 10)
-        } else if (collidable2 is Bullet && collidable1 is Asteroid && collidable1.getLife() <= 0) {
-            gameState.scoreBoard.addPoints(collidable2.getStarshipId(), 10)
-        } else gameState.scoreBoard
-    }
-
     fun getWinner(): Starship? {
         val remainingStarships = gameState.movables.filterIsInstance<Starship>()
-        return if (gameState.gameConfig.playersAmount > 1) {
-            return if (remainingStarships.size == 1) remainingStarships[0]
-            else if (remainingStarships.size > 1) {
-                var winningScore = Pair("", 0)
-                gameState.scoreBoard.getScore().filter {
-                    val (_, points) = it
-                    points >= gameState.gameConfig.winningPoints
-                }.forEach {
-                    val (starshipId, points) = it
-                    if (points > winningScore.second) winningScore = Pair(starshipId, points)
-                }
-                remainingStarships.find { it.getId() == winningScore.first }
-            }
+        return if (gameState.gameConfig.playersAmount > 1) getWinStatusForMoreThanOnePlayer(remainingStarships)
+        else getWinStatusForOnePlayer(remainingStarships)
+    }
+
+    private fun getWinStatusForOnePlayer(remainingStarships: List<Starship>) =
+        if (remainingStarships.size == 1) {
+            val starship = remainingStarships[0]
+            val score = gameState.scoreBoard.getScore()[starship.getId()]
+            if (score != null && score >= gameState.gameConfig.winningPoints) starship
             else null
+        } else null
+
+    private fun getWinStatusForMoreThanOnePlayer(remainingStarships: List<Starship>): Starship? {
+        return if (remainingStarships.size == 1) remainingStarships[0]
+        else if (remainingStarships.size > 1) getWinnerStarship(remainingStarships)
+        else null
+    }
+
+    private fun getWinnerStarship(remainingStarships: List<Starship>): Starship? {
+        var winningScore = Pair("", 0)
+        gameState.scoreBoard.getScore().filter {
+            val (_, points) = it
+            points >= gameState.gameConfig.winningPoints
+        }.forEach {
+            val (starshipId, points) = it
+            if (points > winningScore.second) winningScore = Pair(starshipId, points)
         }
-        else {
-            if (remainingStarships.size == 1) {
-                val starship = remainingStarships[0]
-                val score = gameState.scoreBoard.getScore()[starship.getId()]
-                if (score != null && score >= gameState.gameConfig.winningPoints) starship
-                else null
-            }
-            else null
-        }
+        return remainingStarships.find { it.getId() == winningScore.first }
     }
 
 

@@ -1,10 +1,12 @@
 package ui
 
+import adapters.GameModelToUIAdapter
 import edu.austral.ingsis.starships.ui.*
 import javafx.scene.text.Text
 import models.GameStatus
 import models.Starship
 import services.GameEngine
+import services.GameEngineContainer
 
 //class TimeListener(private val elements: MutableMap<String, ElementModel>, var gameEngine: GameEngine) :
 //    EventListener<TimePassed> {
@@ -59,18 +61,12 @@ import services.GameEngine
 //
 //}
 //
-//class OutOfBoundsListener(private val elements: MutableMap<String, ElementModel>, var gameEngine: GameEngine) :
-//    EventListener<OutOfBounds> {
-//    override fun handle(event: OutOfBounds) {
-//        gameEngine = gameEngine.handleElementOutOfBounds(event.id)
-//        gameEngine.removeElements(elements)
-//    }
-//}
 //
-//class ReachBoundsListener(private val elements: MutableMap<String, ElementModel>, var gameEngine: GameEngine) :
+//class ReachBoundsListener(private val elements: MutableMap<String, ElementModel>, var gameEngineContainer: GameEngineContainer, private val adapter: GameModelToUIAdapter) :
 //    EventListener<ReachBounds> {
 //    override fun handle(event: ReachBounds) {
-//        gameEngine = gameEngine.handleReachedBounds(event.id)
-//        gameEngine.updateElementsPosition(elements)
+//        gameEngineContainer.setGameEngine(gameEngineContainer.gameEngine().handleReachedBounds(event.id))
+//        adapter.updateElementsPosition(elements, gameEngineContainer.gameEngine().gameState.movables)
 //    }
 //}
+

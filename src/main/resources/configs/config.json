@@ -1,12 +1,22 @@
 {
-  "playersAmount": 2,
-  "playersNames": ["Mati", "Merce"],
-  "starshipsLife": 500,
-  "winningPoints": 100,
-  "gameTime": 240.0,
+  "playersAmount": 4,
+  "playersNames": ["Matute", "Carlos", "Juan", "Panchito"],
+  "starshipsLife": 1000,
+  "winningPoints": 200,
+  "gameTime": 120.0,
   "keyBinding": [
     {
-      "name": "Mati",
+      "name": "Matute",
+      "keys": {
+        "ACCELERATE": "UP",
+        "DECELERATE": "DOWN",
+        "ROTATE_CLOCKWISE": "RIGHT",
+        "ROTATE_ANTICLOCKWISE": "LEFT",
+        "SHOOT": "SPACE"
+      }
+    },
+    {
+      "name": "Carlos",
       "keys": {
         "ACCELERATE": "W",
         "DECELERATE": "S",
@@ -16,41 +26,71 @@
       }
     },
     {
-      "name": "Merce",
+      "name": "Juan",
       "keys": {
-        "ACCELERATE": "UP",
-        "DECELERATE": "DOWN",
-        "ROTATE_CLOCKWISE": "RIGHT",
-        "ROTATE_ANTICLOCKWISE": "LEFT",
-        "SHOOT": "SPACE"
+        "ACCELERATE": "I",
+        "DECELERATE": "K",
+        "ROTATE_CLOCKWISE": "L",
+        "ROTATE_ANTICLOCKWISE": "J",
+        "SHOOT": "U"
+      }
+    },
+    {
+      "name": "Panchito",
+      "keys": {
+        "ACCELERATE": "Y",
+        "DECELERATE": "H",
+        "ROTATE_CLOCKWISE": "J",
+        "ROTATE_ANTICLOCKWISE": "G",
+        "SHOOT": "T"
       }
     }
   ],
   "starships": [
     {
-      "playerName": "Mati",
+      "playerName": "Matute",
+      "type": 1
+    },
+    {
+      "playerName": "Matute",
       "type": 2
     },
     {
-      "playerName": "Merce",
-      "type": 1
+      "playerName": "Matute",
+      "type": 3
+    },
+    {
+      "playerName": "Panchito",
+      "type": 2
     }
   ],
   "bullets": [
     {
-      "playerName": "Mati",
-      "color": "BLUE",
-      "damage": 8,
-      "speed": 11.0
+      "playerName": "Matute",
+      "color": "RED",
+      "damage": 10,
+      "speed": 15.0
     },
     {
-      "playerName": "Merce",
-      "color": "RED",
-      "damage": 16,
+      "playerName": "Carlos",
+      "color": "BLUE",
+      "damage": 10,
+      "speed": 15.0
+    },
+    {
+      "playerName": "Juan",
+      "color": "BLUE",
+      "damage": 10,
+      "speed": 15.0
+    },
+    {
+      "playerName": "Panchito",
+      "color": "BLUE",
+      "damage": 10,
       "speed": 15.0
     }
   ],
-  "asteroidSpawnRate": 2.5,
-  "boosterSpawnRate": 15.0,
-  "asteroidsDamage": 15
+  "asteroidSpawnRate": 1.5,
+  "boosterSpawnRate": 10.0,
+  "asteroidsDamage": 100
 }

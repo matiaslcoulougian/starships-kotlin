@@ -1,6 +1,6 @@
 {
   "playersAmount": 3,
-  "playersNames": ["Matute", "Carlos", "Juan"],
+  "playersNames": ["Matute", "Carlos", "Juan", "Panchito"],
   "starshipsLife": 1000,
   "winningPoints": 200,
   "gameTime": 120.0,
@@ -34,6 +34,16 @@
         "ROTATE_ANTICLOCKWISE": "J",
         "SHOOT": "U"
       }
+    },
+    {
+      "name": "Panchito",
+      "keys": {
+        "ACCELERATE": "Y",
+        "DECELERATE": "H",
+        "ROTATE_CLOCKWISE": "J",
+        "ROTATE_ANTICLOCKWISE": "G",
+        "SHOOT": "T"
+      }
     }
   ],
   "starships": [
@@ -48,6 +58,10 @@
     {
       "playerName": "Matute",
       "type": 3
+    },
+    {
+      "playerName": "Panchito",
+      "type": 2
     }
   ],
   "bullets": [
@@ -65,6 +79,12 @@
     },
     {
       "playerName": "Juan",
+      "color": "BLUE",
+      "damage": 10,
+      "speed": 15.0
+    },
+    {
+      "playerName": "Panchito",
       "color": "BLUE",
       "damage": 10,
       "speed": 15.0

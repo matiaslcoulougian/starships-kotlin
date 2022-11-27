@@ -37,106 +37,106 @@ class Starships() : Application() {
     private val facade = ElementsViewFacade(imageResolver)
     private val keyTracker = KeyTracker()
     private val gameStateFactory = ClassicGameStateFactory()
+    private var gameEngine = GameEngine(gameStateFactory.buildGame(), gameStateFactory)
+    private val adapter = GameModelToUIAdapter()
     private val keysPressed: MutableList<KeyCode> = mutableListOf<KeyCode>()
+    private var pausedTimePassed = 0.0
+    private var starshipNames = getStarshipNames(gameEngine)
     override fun start(primaryStage: Stage) {
-        var gameEngine = GameEngine(gameStateFactory.buildGame(), gameStateFactory)
-        val adapter = GameModelToUIAdapter()
-        var starshipNames = gameEngine.gameState.movables.filterIsInstance<Starship>().map { Pair(it.getId(), it.getName()) }
-
         adapter.addElements(facade.elements, gameEngine.gameState.movables, gameEngine.gameState.boosters)
+        val (stats, texts, divs) = createGameStats(gameEngine, starshipNames)
+        val (gameOverDiv, gameOverText) = createVisualElement("", Pos.CENTER, 35.0)
 
-        val pointsText = Text(getScoreText(gameEngine, starshipNames))
-        val lifeText = Text(getLifeText(gameEngine))
+        timePassedListener(gameOverDiv, gameOverText, stats, divs, texts)
+        collisionsListener(texts)
+        keyPressedListener()
+        outOfBoundsListener()
+        reachBoundsListener()
+        keyReleasedListener(texts, stats, gameOverDiv, divs)
 
-        val stats = StackPane()
+        facade.showGrid.set(false)
+        facade.showCollider.set(false)
 
-        pointsText.font = Font.font("Verdana", FontWeight.BOLD, FontPosture.REGULAR, 20.0)
-        pointsText.fill = Color.BLUE
-        pointsText.stroke = Color.BLACK
-        pointsText.strokeWidth = 1.0
+        val scene = setScene(stats)
+        keyTracker.scene = scene
+        scene.stylesheets.add(this::class.java.classLoader.getResource("styles.css")?.toString())
+        primaryStage.scene = scene
+        primaryStage.height = STAGE_HEIGHT
+        primaryStage.width = STAGE_WIDTH
+        facade.start()
+        keyTracker.start()
+        primaryStage.show()
+    }
 
-        val pointsDiv = HBox()
-        pointsDiv.alignment = Pos.TOP_LEFT
-        pointsDiv.children.addAll(pointsText)
-        pointsDiv.padding = Insets(10.0, 10.0, 10.0, 10.0)
-
-        lifeText.font = Font.font("Verdana", FontWeight.BOLD, FontPosture.REGULAR, 20.0)
-        lifeText.fill = Color.BLUE
-        lifeText.stroke = Color.BLACK
-        lifeText.strokeWidth = 1.0
-
-        val lifeDiv = HBox()
-        lifeDiv.alignment = Pos.TOP_RIGHT
-        lifeDiv.children.addAll(lifeText)
-        lifeDiv.padding = Insets(10.0, 10.0, 10.0, 10.0)
-
-
-        val timeText = Text("0")
-        timeText.font = Font.font("Arial", FontWeight.BOLD, FontPosture.REGULAR, 30.0)
-        timeText.fill = Color.BLUE
-        timeText.stroke = Color.BLACK
-        timeText.strokeWidth = 1.0 // setting stroke width to 2
-        val timeDiv = HBox()
-        timeDiv.alignment = Pos.TOP_CENTER
-        timeDiv.children.addAll(timeText)
-        timeDiv.padding = Insets(10.0, 10.0, 10.0, 10.0)
-
-
-        val gameOverText = Text("")
-        gameOverText.font = Font.font("Arial", FontWeight.EXTRA_BOLD, FontPosture.REGULAR, 35.0)
-        gameOverText.fill = Color.DARKBLUE
-        gameOverText.stroke = Color.BLACK
-        gameOverText.strokeWidth = 1.0 // setting stroke width to 2
-
-        val gameOverDiv = HBox()
-        gameOverDiv.alignment = Pos.CENTER
-        gameOverDiv.children.addAll(gameOverText)
-        gameOverDiv.padding = Insets(10.0, 10.0, 10.0, 10.0)
-
-        stats.children.addAll(pointsDiv, lifeDiv, timeDiv)
+    private fun setScene(stats: StackPane): Scene {
+        val root = facade.view
+        root.id = "pane"
 
         val pane = StackPane()
 
-        var pausedTimePassed = 0.0
+        pane.children.addAll(root, stats)
 
+        return Scene(pane)
+    }
+
+    override fun stop() {
+        facade.stop()
+        keyTracker.stop()
+    }
+    private fun timePassedListener(gameOverDiv: HBox, gameOverText: Text, stats: StackPane, divs: List<HBox>, texts: Map<String, Text>) {
         facade.timeListenable.addEventListener(object: EventListener<TimePassed> {
             override fun handle(event: TimePassed) {
                 when (gameEngine.gameState.status) {
                     GameStatus.PLAY -> {
-                        gameEngine = gameEngine.handleTimePassed(event.currentTimeInSeconds, event.secondsSinceLastTime)
-                        adapter.updateElementsPosition(facade.elements, gameEngine.gameState.movables)
-                        adapter.addElements(facade.elements, gameEngine.gameState.movables, gameEngine.gameState.boosters)
-                        timeText.text = getTimeText(gameEngine, event.currentTimeInSeconds)
-                        keysPressed.forEach {
-                            gameEngine = gameEngine.handleKeyPressed(it, event.secondsSinceLastTime)
-                            adapter.updateElementsPosition(facade.elements, gameEngine.gameState.movables)
-                            adapter.addElements(facade.elements, gameEngine.gameState.movables, gameEngine.gameState.boosters)
-                        }
+                        handlePlayTimePassed(event, texts)
                     }
                     GameStatus.OVER -> {
-                        if (!stats.children.contains(gameOverDiv)) {
-                            stats.children.removeAll(pointsDiv, lifeDiv, timeDiv)
-                            adapter.removeAllElements(facade.elements, gameEngine.gameState.movables, gameEngine.gameState.boosters)
-                            gameOverText.text = getWinnerText(gameEngine)
-                            stats.children.add(gameOverDiv)
-                        }
+                        handleOverTimePassed(stats, gameOverDiv, divs, gameOverText)
                     }
                     GameStatus.PAUSE -> pausedTimePassed += event.secondsSinceLastTime
                 }
             }
         })
+    }
+    private fun handleOverTimePassed(stats: StackPane, gameOverDiv: HBox, divs: List<HBox>, gameOverText: Text) {
+        if (!stats.children.contains(gameOverDiv)) {
+            stats.children.removeAll(divs)
+            adapter.removeAllElements(
+                facade.elements,
+                gameEngine.gameState.movables,
+                gameEngine.gameState.boosters
+            )
+            gameOverText.text = getWinnerText(gameEngine)
+            stats.children.add(gameOverDiv)
+        }
+    }
 
+    private fun handlePlayTimePassed(event: TimePassed, texts: Map<String, Text>) {
+        gameEngine = gameEngine.handleTimePassed(event.currentTimeInSeconds, event.secondsSinceLastTime)
+        adapter.updateElementsPosition(facade.elements, gameEngine.gameState.movables)
+        adapter.addElements(facade.elements, gameEngine.gameState.movables, gameEngine.gameState.boosters)
+        texts["time"]?.text = getTimeText(gameEngine, event.currentTimeInSeconds)
+        keysPressed.forEach {
+            gameEngine = gameEngine.handleKeyPressed(it, event.secondsSinceLastTime)
+            adapter.updateElementsPosition(facade.elements, gameEngine.gameState.movables)
+            adapter.addElements(facade.elements, gameEngine.gameState.movables, gameEngine.gameState.boosters)
+        }
+    }
+
+    private fun collisionsListener(texts: Map<String, Text>){
         facade.collisionsListenable.addEventListener(object: EventListener<Collision> {
             override fun handle(event: Collision) {
                 if (gameEngine.gameState.status == GameStatus.PLAY) {
                     gameEngine = gameEngine.handleCollision(event.element1Id, event.element2Id)
                     adapter.removeElements(facade.elements, gameEngine.gameState.movables, gameEngine.gameState.boosters)
-                    pointsText.text = getScoreText(gameEngine, starshipNames)
-                    lifeText.text = getLifeText(gameEngine)
+                    texts["score"]?.text = getScoreText(gameEngine, starshipNames)
+                    texts["life"]?.text = getLifeText(gameEngine)
                 }
             }
         })
+    }
 
+    private fun keyPressedListener(){
         keyTracker.keyPressedListenable.addEventListener(object: EventListener<KeyPressed> {
             override fun handle(event: KeyPressed) {
                 if (gameEngine.gameState.status === GameStatus.PLAY) {
@@ -144,49 +144,37 @@ class Starships() : Application() {
                 }
             }
         })
+    }
 
+    private fun outOfBoundsListener() {
         facade.outOfBoundsListenable.addEventListener(object: EventListener<OutOfBounds> {
             override fun handle(event: OutOfBounds) {
                 gameEngine = gameEngine.handleElementOutOfBounds(event.id)
                 adapter.removeElements(facade.elements, gameEngine.gameState.movables, gameEngine.gameState.boosters)
             }
         })
+    }
 
+    private fun reachBoundsListener(){
         facade.reachBoundsListenable.addEventListener(object : EventListener<ReachBounds> {
             override fun handle(event: ReachBounds) {
                 gameEngine = gameEngine.handleReachedBounds(event.id)
                 adapter.updateElementsPosition(facade.elements, gameEngine.gameState.movables)
             }
         })
+    }
 
+    private fun keyReleasedListener(texts: Map<String, Text>, stats: StackPane, gameOverDiv: HBox, divs: List<HBox>){
         keyTracker.keyReleasedListenable.addEventListener(object: EventListener<KeyReleased> {
             override fun handle(event: KeyReleased) {
-                if (event.key === KeyCode.P) {
-                    if (gameEngine.gameState.status == GameStatus.PLAY) pausedTimePassed = 0.0
-                    gameEngine = gameEngine.handlePauseAndResume(pausedTimePassed)
-                }
-                if (event.key === KeyCode.R && (gameEngine.gameState.status == GameStatus.OVER || gameEngine.gameState.status == GameStatus.PAUSE )) {
-                    adapter.removeAllElements(facade.elements, gameEngine.gameState.movables, gameEngine.gameState.boosters)
-                    gameEngine = GameEngine(gameStateFactory.buildGame(), gameStateFactory)
-                    starshipNames = gameEngine.gameState.movables.filterIsInstance<Starship>().map { Pair(it.getId(), it.getName()) }
-                    if (stats.children.contains(gameOverDiv)) {
-                        stats.children.addAll(pointsDiv, lifeDiv, timeDiv)
-                        stats.children.remove(gameOverDiv)
-                        pointsText.text = getScoreText(gameEngine, starshipNames)
-                        lifeText.text = getLifeText(gameEngine)
-                        adapter.addElements(facade.elements, gameEngine.gameState.movables, gameEngine.gameState.boosters)
-                        return
+                if (event.key === KeyCode.P) handlePauseKey()
+                else if (gameEngine.gameState.status == GameStatus.OVER || gameEngine.gameState.status == GameStatus.PAUSE) {
+                    when (event.key) {
+                        KeyCode.S -> saveGame(gameEngine.gameState)
+                        KeyCode.L -> loadGame(texts)
+                        KeyCode.R -> handleResetGame(stats, texts, gameOverDiv, divs)
+                        else -> {}
                     }
-                }
-                if (event.key === KeyCode.S && gameEngine.gameState.status == GameStatus.PAUSE) saveGame(gameEngine.gameState)
-                if (event.key === KeyCode.L && gameEngine.gameState.status == GameStatus.PAUSE) {
-                    val loadedGame = loadGame()
-                    gameEngine = gameEngine.copy(gameState = loadedGame)
-                    starshipNames = gameEngine.gameState.movables.filterIsInstance<Starship>().map { Pair(it.getId(), it.getName()) }
-                    adapter.addElements(facade.elements, gameEngine.gameState.movables, gameEngine.gameState.boosters)
-                    pointsText.text = getScoreText(gameEngine, starshipNames)
-                    lifeText.text = getLifeText(gameEngine)
-                    return
                 }
                 gameEngine = gameEngine.handleShoot(event.key)
                 adapter.updateElementsPosition(facade.elements, gameEngine.gameState.movables)
@@ -194,31 +182,73 @@ class Starships() : Application() {
                 keysPressed.remove(event.key)
             }
         })
-
-        facade.showGrid.set(false)
-        facade.showCollider.set(false)
-
-        val root = facade.view
-        root.id = "pane"
-
-        pane.children.addAll(root, stats)
-
-        val scene = Scene(pane)
-        keyTracker.scene = scene
-        scene.stylesheets.add(this::class.java.classLoader.getResource("styles.css")?.toString())
-
-        primaryStage.scene = scene
-        primaryStage.height = STAGE_HEIGHT
-        primaryStage.width = STAGE_WIDTH
-
-        facade.start()
-        keyTracker.start()
-        primaryStage.show()
     }
 
-    override fun stop() {
-        facade.stop()
-        keyTracker.stop()
+    private fun loadGame(texts: Map<String, Text>) {
+        val loadedGame = loadGame()
+        gameEngine = gameEngine.copy(gameState = loadedGame)
+        starshipNames = getStarshipNames(gameEngine)
+        adapter.addElements(facade.elements, gameEngine.gameState.movables, gameEngine.gameState.boosters)
+        texts["score"]?.text = getScoreText(gameEngine, starshipNames)
+        texts["life"]?.text = getLifeText(gameEngine)
+    }
+
+    private fun handleResetGame(stats: StackPane, texts: Map<String, Text>, gameOverDiv: HBox, divs: List<HBox>) {
+        adapter.removeAllElements(facade.elements, gameEngine.gameState.movables, gameEngine.gameState.boosters)
+        gameEngine = GameEngine(gameStateFactory.buildGame(), gameStateFactory)
+        starshipNames = getStarshipNames(gameEngine)
+        adapter.addElements(facade.elements, gameEngine.gameState.movables, gameEngine.gameState.boosters)
+        if (stats.children.contains(gameOverDiv)) resetVisualComponents(stats, divs, gameOverDiv, texts)
+    }
+
+    private fun resetVisualComponents(
+        stats: StackPane,
+        divs: List<HBox>,
+        gameOverDiv: HBox,
+        texts: Map<String, Text>
+    ) {
+        stats.children.addAll(divs)
+        stats.children.remove(gameOverDiv)
+        texts["points"]?.text = getScoreText(gameEngine, starshipNames)
+        texts["life"]?.text = getLifeText(gameEngine)
+    }
+
+    private fun handlePauseKey() {
+        if (gameEngine.gameState.status == GameStatus.PLAY) pausedTimePassed = 0.0
+        gameEngine = gameEngine.handlePauseAndResume(pausedTimePassed)
+    }
+
+
+    private fun createVisualElement(
+        initialText: String,
+        alignment: Pos,
+        size: Double
+    ): Pair<HBox, Text> {
+        val text = Text(initialText)
+
+        text.font = Font.font("Verdana", FontWeight.BOLD, FontPosture.REGULAR, size)
+        text.fill = Color.BLUE
+        text.stroke = Color.BLACK
+        text.strokeWidth = 1.0
+
+        val div = HBox()
+        div.alignment = alignment
+        div.children.addAll(text)
+        div.padding = Insets(10.0, 10.0, 10.0, 10.0)
+        return Pair(div, text)
+    }
+
+    private fun createGameStats(
+        gameEngine: GameEngine,
+        starshipNames: List<Pair<String, String>>
+    ): Triple<StackPane, Map<String, Text>, List<HBox>> {
+        val stats = StackPane()
+        val (scoreDiv, scoreText) = createVisualElement(getScoreText(gameEngine, starshipNames), Pos.TOP_LEFT, 20.0)
+        val (lifeDiv, lifeText) = createVisualElement(getLifeText(gameEngine), Pos.TOP_RIGHT, 20.0)
+        val (timeDiv, timeText) = createVisualElement("0", Pos.TOP_CENTER, 20.0)
+        stats.children.addAll(scoreDiv, lifeDiv, timeDiv)
+        val texts = mapOf(Pair("time", timeText), Pair("life", lifeText), Pair("score", scoreText))
+        return Triple(stats, texts, listOf(scoreDiv, lifeDiv, timeDiv))
     }
 
     private fun getScoreText(gameEngine: GameEngine, starshipNames: List<Pair<String, String>>): String {
@@ -265,5 +295,7 @@ class Starships() : Application() {
             else "$stringMinutes:$stringSeconds"
         }
     }
+
+    private fun getStarshipNames(gameEngine: GameEngine) = gameEngine.gameState.movables.filterIsInstance<Starship>().map { Pair(it.getId(), it.getName()) }
 
 }
